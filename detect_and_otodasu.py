@@ -98,10 +98,7 @@ def main():
                         for l in range(0,15):
                             if data[k,l]==True:
                                 sound1.play()
-                                number=sound1.get_num_channels()
-                                if number>=1:
-                                    print("number_of_sounds=%d",number)
-                                else:
+                                print("play_sound1")
 
 
 
