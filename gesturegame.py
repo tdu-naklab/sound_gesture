@@ -22,14 +22,14 @@ class GestureGame:
         # RealSenseの初期化
         self.__init_realsense()
         # ノーツ生成
-        self.__notes = [Notes(100, 100),
-                        Notes(500, 100),
-                        Notes(100, 400),
-                        Notes(500, 400)]
-
-    # デストラクタ
-    def __del__(self):
-        pass
+        self.__notes = [Notes(np.array([self.WIDTH / 2 - 150, self.HEIGHT / 2 - 100]),
+                              np.array([0, 0])),
+                        Notes(np.array([self.WIDTH / 2 + 150, self.HEIGHT / 2 - 100]),
+                              np.array([self.WIDTH, 0])),
+                        Notes(np.array([self.WIDTH / 2 - 150, self.HEIGHT / 2 + 100]),
+                              np.array([0, self.HEIGHT])),
+                        Notes(np.array([self.WIDTH / 2 + 150, self.HEIGHT / 2 + 100]),
+                              np.array([self.WIDTH, self.HEIGHT]))]
 
     # RealSenseの初期化
     def __init_realsense(self):
@@ -60,11 +60,11 @@ class GestureGame:
         depth_color_frame = rs.colorizer().colorize(depth_frame)
 
         # フレームからカラー画像を生成
-        color_image = np.asanyarray(color_frame.get_data())
+        color_image = cv2.flip(np.asanyarray(color_frame.get_data()), 1)
         # フレームから深度画像を生成
-        depth_image = np.asanyarray(depth_frame.get_data())
+        depth_image = cv2.flip(np.asanyarray(depth_frame.get_data()), 1)
         # フレームから彩色した深度画像を生成
-        depth_color_image = np.asanyarray(depth_color_frame.get_data())
+        depth_color_image = cv2.flip(np.asanyarray(depth_color_frame.get_data()), 1)
         depth_color_image = cv2.morphologyEx(depth_color_image, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))  # モルフォロジー処理
         depth_color_image = cv2.bilateralFilter(depth_color_image, 15, 20, 20)  # バイラテラルフィルタ
 
@@ -88,8 +88,18 @@ class GestureGame:
         color_image, depth_image, depth_color_image = self.__get_camera_image()
         # 深度画像を二値化処理
         depth_binary_image = self.__generate_depth_binary_image(depth_image, self.__detection_distance_max)
+        depth_binary_image = cv2.GaussianBlur(depth_binary_image, (self.GAUSSIAN_KERNEL_SIZE, self.GAUSSIAN_KERNEL_SIZE), 0)
 
         game_screen = color_image  # ゲーム画面
+
+        # 物体が700mm以内に入ったとき
+        if ((0 < depth_image) & (depth_image < self.DETECTION_DISTANCE_MAX * 1000)).any():
+            labels, label_images, object_data, center_pos = cv2.connectedComponentsWithStats(depth_binary_image)
+            for label in range(1, labels):
+                center_x, center_y = center_pos[label]
+                game_screen = cv2.circle(color_image, (int(center_x), int(center_y)), 1, (0, 0, 255), -1)
+                pos_x, pos_y, width, height, area_px = object_data[label]
+                game_screen = cv2.rectangle(color_image, (pos_x, pos_y), (pos_x + width, pos_y + height), (255, 255, 0), 1)
 
         # ノーツ更新
         for note in self.__notes:
@@ -103,21 +113,36 @@ class GestureGame:
 # ノーツ
 class Notes:
     # コンストラクタ
-    def __init__(self, pos_x, pos_y):
-        self.__pos_x = pos_x
-        self.__pos_y = pos_y
+    def __init__(self, icon_pos, note_init_pos):
+        # アイコン座標の設定
+        self.__icon_pos = icon_pos
 
-    # デストラクタ
-    def __del__(self):
-        pass
+        # ノーツの出現位置の設定
+        self.__note_init_pos = note_init_pos.astype('float64')
+        # ノーツ位置初期化
+        self.__note_pos = self.__note_init_pos
+        # ノーツの移動する目的座標
+        self.__destination_pos = self.__note_init_pos + (self.__icon_pos - self.__note_init_pos) * 2
+
+        # 初期時間の取得
+        self.__start_time = time.time()
 
     # ノーツの更新処理
     def update(self, game_screen):
         # アイコン描画
         cv2.rectangle(game_screen,
-                      (self.__pos_x-15, self.__pos_y-15),
-                      (self.__pos_x+15, self.__pos_y+15),
+                      (int(self.__icon_pos[0])-15, int(self.__icon_pos[1])-15),
+                      (int(self.__icon_pos[0])+15, int(self.__icon_pos[1])+15),
                       (0, 255, 0),
                       thickness=-1)
+
+        # ノーツが移動するベクトルを計算
+        move_vec = self.__destination_pos - self.__note_pos
+        move_vec = move_vec / np.linalg.norm(move_vec)  # 正規化
+        move_vec *= 3  # 移動量
+        # ノーツを移動
+        self.__note_pos += move_vec
+        # ノーツを描画
+        cv2.circle(game_screen, (int(self.__note_pos[0]), int(self.__note_pos[1])), 30, (255, 0, 0), 5)
 
         return game_screen
