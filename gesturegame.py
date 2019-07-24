@@ -149,29 +149,31 @@ class Note:
         # ノートの移動する目的座標 (出現位置とアイコン間のベクトルの2倍に指定)
         self.__destination_pos = self.__note_init_pos + (self.__icon_pos - self.__note_init_pos) * 2
 
-        self.__start_time = time.time()  # 初期時間の取得
+        self.__icon_is_pushed = False  # ボタンが押されているか
 
         self.__note_is_active = False  # ノートを非アクティブ化
 
     # 判定処理
     def __judgement(self, labels, label_images, object_data, center_pos):
+        note_pos_from_note_init_pos = self.__note_pos - self.__note_init_pos  # 出現位置からみたノートの位置
+        icon_pos_from_note_init_pos = self.__icon_pos - self.__note_init_pos  # 出現位置からみたアイコンの位置
+        note_pos_from_icon_pos = self.__note_pos - self.__icon_pos  # アイコンから見たノートの位置
+        distance_icon_and_note = np.linalg.norm(note_pos_from_icon_pos)  # アイコンとノートの距離
+        deadline_from_icon_pos = icon_pos_from_note_init_pos * 1.2 - icon_pos_from_note_init_pos  # アイコンからみた判定区間の終わり
+        deadline_range = np.linalg.norm(deadline_from_icon_pos)  # 判定区間の大きさ
+
         # 押されなかった場合
-        if np.linalg.norm(self.__note_pos - self.__note_init_pos) > np.linalg.norm(self.__icon_pos-self.__note_init_pos) * 1.5:
+        if np.linalg.norm(note_pos_from_note_init_pos) > np.linalg.norm(icon_pos_from_note_init_pos + deadline_from_icon_pos):
             self.destroy()
+            return -1  # 失敗
 
-        icon_position_image = np.zeros((GestureGame.HEIGHT, GestureGame.WIDTH), np.uint8)
-        cv2.rectangle(icon_position_image,
-                      (int(self.__icon_pos[0] - Note.ICON_SIDE_LENGTH / 2),
-                       int(self.__icon_pos[1] - Note.ICON_SIDE_LENGTH / 2)),
-                      (int(self.__icon_pos[0] + Note.ICON_SIDE_LENGTH / 2),
-                       int(self.__icon_pos[1] + Note.ICON_SIDE_LENGTH / 2)),
-                      (255, 255, 255),
-                      thickness=-1)
+        # 押されているとき
+        if self.__icon_is_pushed is True:
+            if distance_icon_and_note < deadline_range:
+                self.destroy()
+                return deadline_range - distance_icon_and_note  # 距離に応じた得点
 
-        if(label_images & icon_position_image).any():
-            return True
-        else:
-            return False
+        return 0  # 何もなかった場合
 
     # ノートを表示する
     def generate(self):
@@ -188,22 +190,24 @@ class Note:
 
     # ノートの更新処理
     def update(self, game_screen, labels, label_images, object_data, center_pos):
-        icon_color = [0, 255, 0]
+        icon_color = [0, 255, 0]  # アイコンの色
 
-        # ノートがアクティブな場合，ノートの更新を行う
-        if self.__note_is_active is True:
-            # ノートの判定処理
-            if self.__judgement(labels, label_images, object_data, center_pos) is True:
-                icon_color = [0, 0, 255]
+        # ボタン当たり判定計算用
+        icon_position_image = np.zeros((GestureGame.HEIGHT, GestureGame.WIDTH), np.uint8)
+        cv2.rectangle(icon_position_image,
+                      (int(self.__icon_pos[0] - Note.ICON_SIDE_LENGTH / 2),
+                       int(self.__icon_pos[1] - Note.ICON_SIDE_LENGTH / 2)),
+                      (int(self.__icon_pos[0] + Note.ICON_SIDE_LENGTH / 2),
+                       int(self.__icon_pos[1] + Note.ICON_SIDE_LENGTH / 2)),
+                      (255, 255, 255),
+                      thickness=-1)
 
-            # ノートが移動するベクトルを計算
-            move_vec = self.__destination_pos - self.__note_pos
-            move_vec = move_vec / np.linalg.norm(move_vec)  # 正規化
-            move_vec *= 3  # 移動量
-
-            self.__note_pos += move_vec  # ノートを移動
-
-            cv2.circle(game_screen, tuple(self.__note_pos.astype('int32')), 30, (255, 0, 0), 5)  # ノートを描画
+        # アイコンと二値画像が被った場合
+        if (label_images & icon_position_image).any():
+            icon_color = [0, 0, 255]  # 色を更新
+            self.__icon_is_pushed = True
+        else:
+            self.__icon_is_pushed = False
 
         # アイコン描画
         cv2.rectangle(game_screen,
@@ -213,6 +217,21 @@ class Note:
                        int(self.__icon_pos[1] + Note.ICON_SIDE_LENGTH / 2)),
                       icon_color,
                       thickness=-1)
+
+        # ノートがアクティブな場合，ノートの更新を行う
+        if self.__note_is_active is True:
+            # 判定
+            point = self.__judgement(labels, label_images, object_data, center_pos)
+            print(point)
+
+            # ノートが移動するベクトルを計算
+            move_vec = self.__destination_pos - self.__note_pos
+            move_vec = move_vec / np.linalg.norm(move_vec)  # 正規化
+            move_vec *= 3  # 移動量
+
+            self.__note_pos += move_vec  # ノートを移動
+
+            cv2.circle(game_screen, tuple(self.__note_pos.astype('int32')), 30, (255, 0, 0), 5)  # ノートを描画
 
         return game_screen
 
