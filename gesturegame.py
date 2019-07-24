@@ -23,21 +23,21 @@ class GestureGame:
         # RealSenseの初期化
         self.__init_realsense()
         # ノーツ生成
-        self.__notes = [Note(np.array([self.WIDTH / 2 - 150, self.HEIGHT / 2 - 100]),  # アイコンの座標
-                             np.array([0, 0])),                                        # ノートの出現位置
-                        Note(np.array([self.WIDTH / 2 + 150, self.HEIGHT / 2 - 100]),
-                             np.array([self.WIDTH, 0])),
-                        Note(np.array([self.WIDTH / 2 - 150, self.HEIGHT / 2 + 100]),
-                             np.array([0, self.HEIGHT])),
-                        Note(np.array([self.WIDTH / 2 + 150, self.HEIGHT / 2 + 100]),
-                             np.array([self.WIDTH, self.HEIGHT]))]
+        self.__notes = [Note(np.array([GestureGame.WIDTH / 2 - 150, GestureGame.HEIGHT / 2 - 100]),  # アイコンの座標
+                             np.array([0, 0])),                                                      # ノートの出現位置
+                        Note(np.array([GestureGame.WIDTH / 2 + 150, GestureGame.HEIGHT / 2 - 100]),
+                             np.array([GestureGame.WIDTH, 0])),
+                        Note(np.array([GestureGame.WIDTH / 2 - 150, GestureGame.HEIGHT / 2 + 100]),
+                             np.array([0, GestureGame.HEIGHT])),
+                        Note(np.array([GestureGame.WIDTH / 2 + 150, GestureGame.HEIGHT / 2 + 100]),
+                             np.array([GestureGame.WIDTH, GestureGame.HEIGHT]))]
 
     # RealSenseの初期化
     def __init_realsense(self):
         # 初期化処理
         config = rs.config()
-        config.enable_stream(rs.stream.color, self.WIDTH, self.HEIGHT, rs.format.bgr8, self.FPS)
-        config.enable_stream(rs.stream.depth, self.WIDTH, self.HEIGHT, rs.format.z16, self.FPS)
+        config.enable_stream(rs.stream.color, GestureGame.WIDTH, GestureGame.HEIGHT, rs.format.bgr8, GestureGame.FPS)
+        config.enable_stream(rs.stream.depth, GestureGame.WIDTH, GestureGame.HEIGHT, rs.format.z16, GestureGame.FPS)
         self.__pipeline = rs.pipeline()
         # 画角情報の取得
         self.__align = rs.align(rs.stream.color)
@@ -46,9 +46,9 @@ class GestureGame:
 
         depth_scale = profile.get_device().first_depth_sensor().get_depth_scale()
         # 対象範囲の閾値
-        self.__distance_max = self.TARGET_DISTANCE_MAX / depth_scale
-        self.__distance_min = self.TARGET_DISTANCE_MIN / depth_scale
-        self.__detection_distance_max = self.DETECTION_DISTANCE_MAX / depth_scale
+        self.__distance_max = GestureGame.TARGET_DISTANCE_MAX / depth_scale
+        self.__distance_min = GestureGame.TARGET_DISTANCE_MIN / depth_scale
+        self.__detection_distance_max = GestureGame.DETECTION_DISTANCE_MAX / depth_scale
 
     # フレームの取得
     def __get_camera_image(self):
@@ -78,7 +78,7 @@ class GestureGame:
         # 一定距離以下の画素のみ抽出する
         depth_filtered_image = (depth_image < max_dist) * depth_image
         # 0~255に値を収める
-        depth_filtered_image = (depth_filtered_image*255./max_dist).reshape((self.HEIGHT, self.WIDTH)).astype(np.uint8)
+        depth_filtered_image = (depth_filtered_image*255./max_dist).reshape((GestureGame.HEIGHT, GestureGame.WIDTH)).astype(np.uint8)
         # 画像を二値化
         ret, depth_binary_image = cv2.threshold(depth_filtered_image, 1, 255, cv2.THRESH_BINARY)
         # depth_binary_image = cv2.medianBlur(depth_binary_image, self.MEDIAN_KERNEL_SIZE)  # メディアンフィルタ
