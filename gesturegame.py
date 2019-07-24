@@ -128,14 +128,21 @@ class GestureGame:
 
 # ノート
 class Note:
+    ICON_SIDE_LENGTH = 30  # アイコンの1辺の長さ
+
     notes_count = 0  # ノート総数
+    __label_number_list = None
+    __icon_pos_list = np.empty((0, 2), int)
 
     # コンストラクタ
     def __init__(self, icon_pos, note_init_pos):
         self.__note_id = Note.notes_count
         Note.notes_count += 1  # ノート総数を加算
 
-        self.__icon_pos = np.copy(icon_pos)  # アイコン座標の設定
+        # アイコン座標の設定
+        self.__icon_pos = np.copy(icon_pos)
+        Note.__icon_pos_list = np.append(Note.__icon_pos_list, np.array([icon_pos]), axis=0)
+
         self.__note_init_pos = np.copy(note_init_pos.astype('float64'))  # ノートの出現位置の設定
         self.__note_pos = np.copy(self.__note_init_pos)  # ノート位置初期化
 
@@ -147,10 +154,24 @@ class Note:
         self.__note_is_active = False  # ノートを非アクティブ化
 
     # 判定処理
-    def __judge(self, labels, label_images, object_data, center_pos):
+    def __judgement(self, labels, label_images, object_data, center_pos):
         # 押されなかった場合
         if np.linalg.norm(self.__note_pos - self.__note_init_pos) > np.linalg.norm(self.__icon_pos-self.__note_init_pos) * 1.5:
             self.destroy()
+
+        icon_position_image = np.zeros((GestureGame.HEIGHT, GestureGame.WIDTH), np.uint8)
+        cv2.rectangle(icon_position_image,
+                      (int(self.__icon_pos[0] - Note.ICON_SIDE_LENGTH / 2),
+                       int(self.__icon_pos[1] - Note.ICON_SIDE_LENGTH / 2)),
+                      (int(self.__icon_pos[0] + Note.ICON_SIDE_LENGTH / 2),
+                       int(self.__icon_pos[1] + Note.ICON_SIDE_LENGTH / 2)),
+                      (255, 255, 255),
+                      thickness=-1)
+
+        if(label_images & icon_position_image).any():
+            return True
+        else:
+            return False
 
     # ノートを表示する
     def generate(self):
@@ -167,17 +188,13 @@ class Note:
 
     # ノートの更新処理
     def update(self, game_screen, labels, label_images, object_data, center_pos):
-        # アイコン描画
-        cv2.rectangle(game_screen,
-                      (int(self.__icon_pos[0])-15, int(self.__icon_pos[1])-15),
-                      (int(self.__icon_pos[0])+15, int(self.__icon_pos[1])+15),
-                      (0, 255, 0),
-                      thickness=-1)
+        icon_color = [0, 255, 0]
 
         # ノートがアクティブな場合，ノートの更新を行う
         if self.__note_is_active is True:
             # ノートの判定処理
-            self.__judge(labels, label_images, object_data, center_pos)
+            if self.__judgement(labels, label_images, object_data, center_pos) is True:
+                icon_color = [0, 0, 255]
 
             # ノートが移動するベクトルを計算
             move_vec = self.__destination_pos - self.__note_pos
@@ -187,6 +204,15 @@ class Note:
             self.__note_pos += move_vec  # ノートを移動
 
             cv2.circle(game_screen, tuple(self.__note_pos.astype('int32')), 30, (255, 0, 0), 5)  # ノートを描画
+
+        # アイコン描画
+        cv2.rectangle(game_screen,
+                      (int(self.__icon_pos[0] - Note.ICON_SIDE_LENGTH / 2),
+                       int(self.__icon_pos[1] - Note.ICON_SIDE_LENGTH / 2)),
+                      (int(self.__icon_pos[0] + Note.ICON_SIDE_LENGTH / 2),
+                       int(self.__icon_pos[1] + Note.ICON_SIDE_LENGTH / 2)),
+                      icon_color,
+                      thickness=-1)
 
         return game_screen
 
